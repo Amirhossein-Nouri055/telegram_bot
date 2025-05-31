@@ -2,7 +2,6 @@ import asyncio
 import telegram
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler
-from fastapi import FastAPI, Request
 import re
 import json
 import requests
@@ -11,36 +10,35 @@ from bs4 import BeautifulSoup
 # Bot token
 TOKEN = "7695882385:AAFmZuPLfAx_S9_Ff4taKgR2I2jCORpk71w"
 
-# Channel IDs
+# Channel ID (numeric)
 CHANNEL_IDS = [
     "-1002665968223",
     "-1002633120419"
 ]
 
-# Admin Chat ID
+# Admin Chat ID 
 ADMIN_CHAT_ID = "1451384311"
-
-# FastAPI app
-app = FastAPI()
-
-# Initialize Telegram application
-application = Application.builder().token(TOKEN).build()
 
 # Function to get current gold price from website
 def get_gold_price():
-    url = "https://www.tgju.org/profile/geram18"
+    url = "https://www.tgju.org/profile/geram18"  # URL for 18k gold price
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
     }
+    
     try:
         response = requests.get(url, headers=headers)
-        response.raise_for_status()
+        response.raise_for_status() 
+        
         soup = BeautifulSoup(response.text, "html.parser")
+        
         price_tag = soup.find("span", {"data-col": "info.last_trade.PDrCotVal"})
         if price_tag:
             price_str = price_tag.text.strip().replace(",", "")
             return int(price_str), None
-        return None, "قیمت طلا پیدا نشد!"
+        else:
+            return None, "قیمت طلا پیدا نشد!"
+    
     except requests.exceptions.RequestException as e:
         return None, f"خطا در دریافت قیمت: {e}"
 
@@ -50,16 +48,21 @@ def extract_product_info(caption):
     if not caption:
         print("No caption found!")
         return None
+    
     lines = caption.split('\n')
     name = lines[0].strip() if lines else "محصول ناشناخته"
     print(f"Product name: {name}")
+    
     weight = re.search(r'وزن:\s*([\d.]+)\s*گرم', caption)
     ajrat = re.search(r'اجرت:\s*([\d.]+)%', caption)
     profit = re.search(r'سود:\s*([\d.]+)%', caption)
+    
     weight = float(weight.group(1)) if weight else 0
     ajrat = float(ajrat.group(1)) if ajrat else 0
     profit = float(profit.group(1)) if profit else 0
+    
     print(f"Extracted - Weight: {weight}, Ajrat: {ajrat}, Profit: {profit}")
+    
     return {
         "name": name,
         "weight": weight,
@@ -79,12 +82,15 @@ def calculate_price(weight, ajrat, profit, price_per_gram):
 async def handle_new_post(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     print("New post detected!")
     message = update.channel_post
+    
     print(f"Chat ID: {message.chat_id}, Expected: {CHANNEL_IDS}")
     if str(message.chat_id) not in CHANNEL_IDS:
         print("Chat ID does not match!")
         return
+    
     caption = message.caption if message.caption else ""
     print(f"Caption: {caption}")
+    
     product_info = extract_product_info(caption)
     if not product_info or product_info["weight"] == 0:
         print("Product info incomplete or weight is 0!")
@@ -97,16 +103,20 @@ async def handle_new_post(update: telegram.Update, context: telegram.ext.Context
         except Exception as e:
             print(f"Error sending message to admin: {e}")
         return
+    
     product_data = {
         "weight": product_info["weight"],
         "ajrat": product_info["ajrat"],
         "profit": product_info["profit"]
     }
     product_data_json = json.dumps(product_data)
+    
     keyboard = [
         [InlineKeyboardButton("محاسبه قیمت آنلاین", callback_data=f'calculate_price|{product_data_json}')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Edit post to add button
     try:
         await context.bot.edit_message_caption(
             chat_id=message.chat_id,
@@ -121,51 +131,41 @@ async def handle_new_post(update: telegram.Update, context: telegram.ext.Context
 # Function to handle button clicks
 async def button_callback(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    
     callback_data = query.data.split('|', 1)
     if len(callback_data) != 2 or callback_data[0] != 'calculate_price':
         await query.answer("خطا: داده‌های نامعتبر!", show_alert=True)
         return
+    
     try:
         product_data = json.loads(callback_data[1])
     except json.JSONDecodeError:
         await query.answer("خطا: اطلاعات محصول نامعتبر است!", show_alert=True)
         return
+    
     price_per_gram, error = get_gold_price()
     if price_per_gram is None:
         await query.answer(f"خطا: {error}", show_alert=True)
         return
+    
     total_price = calculate_price(
         product_data['weight'],
         product_data['ajrat'],
         product_data['profit'],
         price_per_gram
     )
+    
+    # Show price in popup
     message = (
         f"قیمت کل: {total_price // 10 :,} تومان\n"
         f"قیمت فعلی طلا (هر گرم): {price_per_gram // 10 :,} تومان"
     )
     await query.answer(message, show_alert=True)
 
-# Add handlers
+application = Application.builder().token(TOKEN).build()
+
 application.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_new_post))
 application.add_handler(CallbackQueryHandler(button_callback))
 
-# Webhook endpoint
-@app.post("/webhook")
-async def webhook(request: Request):
-    update = Update.de_json(await request.json(), application.bot)
-    await application.process_update(update)
-    return {"status": "ok"}
-
-# Start webhook
-async def main():
-    await application.initialize()
-    webhook_url = "https://telegrambot-production-0f8c.up.railway.app/webhook"  # Replace with your Railway URL
-    await application.bot.set_webhook(url=webhook_url)
-    print(f"Webhook set to {webhook_url}")
-
-# Run FastAPI server
-if __name__ == "__main__":
-    import uvicorn
-    asyncio.run(main())  # Set webhook before starting server
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+print("Starting bot...")
+application.run_polling()
