@@ -21,7 +21,7 @@ CHANNEL_IDS = [
 ADMIN_CHAT_ID = "1451384311"
 
 # Webhook URL (replace with your Railway URL after generating it)
-WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook"
+WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook"  # این رو با URL واقعی جایگزین کنید
 
 # Function to get current gold price from website
 def get_gold_price():
@@ -180,37 +180,22 @@ async def start_webhook():
     await application.bot.delete_webhook()
     # Set the new webhook
     await application.bot.set_webhook(url=WEBHOOK_URL)
-    port = int(os.getenv("PORT", 8080))  # Use PORT from environment or default to 8443
-    # Start the webhook
-    await application.start()
-    await application.updater.start_webhook(
+    port = int(os.getenv("PORT", 8443))  # Use PORT from environment or default to 8443
+    # Run the webhook
+    await application.run_webhook(
         listen="0.0.0.0",
         port=port,
-        url_path=WEBHOOK_URL.split('/')[-1],
-        webhook_url=WEBHOOK_URL
+        url_path=WEBHOOK_URL.split('/')[-1]
     )
-    print(f"Webhook set and running on port {port}...")
 
 # Main function to run the bot
 async def main():
     try:
         await start_webhook()
-        # Keep the bot running
-        await asyncio.Event().wait()
     except Exception as e:
         print(f"Error: {e}")
-    finally:
-        await application.stop()
-        await application.updater.stop()
 
 # Run the bot
 if __name__ == "__main__":
-    # Create a new event loop to avoid conflicts
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        print("Bot stopped by user")
-    finally:
-        loop.close()
+    # Use asyncio.run directly to avoid event loop conflicts
+    asyncio.run(main())
