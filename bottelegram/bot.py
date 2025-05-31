@@ -178,7 +178,7 @@ async def set_webhook():
 async def main():
     print("Starting bot with webhook...")
     await set_webhook()
-    port = int(os.getenv("PORT", 8443))  # Use PORT from environment or default to 8443
+    port = int(os.getenv("PORT", 8080))  # Use PORT from environment or default to 8443
     await application.run_webhook(
         listen="0.0.0.0",
         port=port,
