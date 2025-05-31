@@ -6,6 +6,7 @@ import re
 import json
 import requests
 from bs4 import BeautifulSoup
+import os
 
 # Bot token
 TOKEN = "7695882385:AAGfCKZrgDfNfLjDdjdee5Cp5OIBqaXz4E8"
@@ -19,8 +20,8 @@ CHANNEL_IDS = [
 # Admin Chat ID 
 ADMIN_CHAT_ID = "1451384311"
 
-# Webhook URL (replace with your Railway URL after generating it)
-WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook"  # این رو با URL واقعی جایگزین کنید
+# Webhook URL
+WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook" 
 
 # Function to get current gold price from website
 def get_gold_price():
@@ -178,7 +179,7 @@ async def set_webhook():
 async def main():
     print("Starting bot with webhook...")
     await set_webhook()
-    port = int(os.getenv("PORT", 8080))  # Use PORT from environment or default to 8443
+    port = int(os.getenv("PORT", 8080))
     await application.run_webhook(
         listen="0.0.0.0",
         port=port,
