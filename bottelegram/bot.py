@@ -20,7 +20,7 @@ CHANNEL_IDS = [
 ADMIN_CHAT_ID = "1451384311"
 
 # Webhook URL (replace with your Railway URL after generating it)
-WEBHOOK_URL = "https://telegrambot-production-ebfe.up.railway.app/webhook"  # این رو با URL واقعی جایگزین کنید
+WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook"  # این رو با URL واقعی جایگزین کنید
 
 # Function to get current gold price from website
 def get_gold_price():
