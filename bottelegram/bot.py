@@ -20,8 +20,8 @@ CHANNEL_IDS = [
 # Admin Chat ID 
 ADMIN_CHAT_ID = "1451384311"
 
-# Webhook URL
-WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook" 
+# Webhook URL (replace with your Railway URL after generating it)
+WEBHOOK_URL = "https://telegrambot-production-2eb0.up.railway.app/webhook"
 
 # Function to get current gold price from website
 def get_gold_price():
@@ -166,25 +166,51 @@ async def button_callback(update: telegram.Update, context: telegram.ext.Context
     )
     await query.answer(message, show_alert=True)
 
+# Initialize the application
 application = Application.builder().token(TOKEN).build()
 
+# Add handlers
 application.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_new_post))
 application.add_handler(CallbackQueryHandler(button_callback))
 
-# Set webhook
-async def set_webhook():
-    await application.bot.set_webhook(url=WEBHOOK_URL)
-
-# Run the application with webhook
-async def main():
+# Set webhook and run with proper event loop handling
+async def start_webhook():
     print("Starting bot with webhook...")
-    await set_webhook()
-    port = int(os.getenv("PORT", 8080))
-    await application.run_webhook(
+    # Delete any existing webhook to avoid conflicts
+    await application.bot.delete_webhook()
+    # Set the new webhook
+    await application.bot.set_webhook(url=WEBHOOK_URL)
+    port = int(os.getenv("PORT", 8080))  # Use PORT from environment or default to 8443
+    # Start the webhook
+    await application.start()
+    await application.updater.start_webhook(
         listen="0.0.0.0",
         port=port,
-        url_path=WEBHOOK_URL.split('/')[-1]
+        url_path=WEBHOOK_URL.split('/')[-1],
+        webhook_url=WEBHOOK_URL
     )
+    print(f"Webhook set and running on port {port}...")
 
+# Main function to run the bot
+async def main():
+    try:
+        await start_webhook()
+        # Keep the bot running
+        await asyncio.Event().wait()
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await application.stop()
+        await application.updater.stop()
+
+# Run the bot
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Create a new event loop to avoid conflicts
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("Bot stopped by user")
+    finally:
+        loop.close()
