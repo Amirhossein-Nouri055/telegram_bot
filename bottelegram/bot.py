@@ -180,7 +180,7 @@ async def start_webhook():
     await application.bot.delete_webhook()
     # Set the new webhook
     await application.bot.set_webhook(url=WEBHOOK_URL)
-    port = int(os.getenv("PORT", 8443))  # Use PORT from environment or default to 8443
+    port = int(os.getenv("PORT", 8080))  # Use PORT from environment or default to 8443
     # Run the webhook
     await application.run_webhook(
         listen="0.0.0.0",
