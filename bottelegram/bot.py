@@ -6,9 +6,10 @@ import re
 import json
 import requests
 from bs4 import BeautifulSoup
+import os
 
 # Bot token
-TOKEN = "7695882385:AAEv82O8jHR6yHrBUqZTN2Mbx_6ejsX6Vnc"
+TOKEN = "7695882385:AAGfCKZrgDfNfLjDdjdee5Cp5OIBqaXz4E8"
 
 # Channel ID (numeric)
 CHANNEL_IDS = [
@@ -19,9 +20,12 @@ CHANNEL_IDS = [
 # Admin Chat ID 
 ADMIN_CHAT_ID = "1451384311"
 
+# URL Railway
+WEBHOOK_URL = "https://telegrambot-production-ebfe.up.railway.app/webhook" 
+
 # Function to get current gold price from website
 def get_gold_price():
-    url = "https://www.tgju.org/profile/geram18"  # URL for 18k gold price
+    url = "https://www.tgju.org/profile/geram18"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
     }
@@ -44,14 +48,11 @@ def get_gold_price():
 
 # Function to extract product info from post caption
 def extract_product_info(caption):
-    print(f"Extracting info from caption: {caption}")
     if not caption:
-        print("No caption found!")
         return None
     
     lines = caption.split('\n')
     name = lines[0].strip() if lines else "محصول ناشناخته"
-    print(f"Product name: {name}")
     
     weight = re.search(r'وزن:\s*([\d.]+)\s*گرم', caption)
     ajrat = re.search(r'اجرت:\s*([\d.]+)%', caption)
@@ -60,8 +61,6 @@ def extract_product_info(caption):
     weight = float(weight.group(1)) if weight else 0
     ajrat = float(ajrat.group(1)) if ajrat else 0
     profit = float(profit.group(1)) if profit else 0
-    
-    print(f"Extracted - Weight: {weight}, Ajrat: {ajrat}, Profit: {profit}")
     
     return {
         "name": name,
@@ -80,20 +79,15 @@ def calculate_price(weight, ajrat, profit, price_per_gram):
 
 # Function to handle new posts
 async def handle_new_post(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE):
-    print("New post detected!")
     message = update.channel_post
     
-    print(f"Chat ID: {message.chat_id}, Expected: {CHANNEL_IDS}")
     if str(message.chat_id) not in CHANNEL_IDS:
-        print("Chat ID does not match!")
         return
     
     caption = message.caption if message.caption else ""
-    print(f"Caption: {caption}")
     
     product_info = extract_product_info(caption)
     if not product_info or product_info["weight"] == 0:
-        print("Product info incomplete or weight is 0!")
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_CHAT_ID,
@@ -116,7 +110,6 @@ async def handle_new_post(update: telegram.Update, context: telegram.ext.Context
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Edit post to add button
     try:
         await context.bot.edit_message_caption(
             chat_id=message.chat_id,
@@ -124,7 +117,6 @@ async def handle_new_post(update: telegram.Update, context: telegram.ext.Context
             caption=message.caption + "\n\nبرای مشاهده قیمت به‌روز، روی دکمه زیر کلیک کنید:",
             reply_markup=reply_markup
         )
-        print("Post edited successfully!")
     except Exception as e:
         print(f"Error editing post: {e}")
 
@@ -155,17 +147,33 @@ async def button_callback(update: telegram.Update, context: telegram.ext.Context
         price_per_gram
     )
     
-    # Show price in popup
     message = (
         f"قیمت کل: {total_price // 10 :,} تومان\n"
         f"قیمت فعلی طلا (هر گرم): {price_per_gram // 10 :,} تومان"
     )
     await query.answer(message, show_alert=True)
 
+# Initialize the application
 application = Application.builder().token(TOKEN).build()
 
+# Add handlers
 application.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_new_post))
 application.add_handler(CallbackQueryHandler(button_callback))
 
-print("Starting bot...")
-application.run_polling()
+# Set webhook
+async def set_webhook():
+    await application.bot.set_webhook(url=WEBHOOK_URL)
+
+# Run the application with webhook
+async def main():
+    print("Starting bot with webhook...")
+    await set_webhook()
+    port = int(os.getenv("PORT", 8443))
+    await application.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        url_path=WEBHOOK_URL.split('/')[-1]
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
