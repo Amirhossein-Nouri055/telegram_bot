@@ -160,7 +160,7 @@ async def webhook(request: Request):
 # Start webhook
 async def main():
     await application.initialize()
-    webhook_url = "https://your-project.railway.app/webhook"  # Replace with your Railway URL
+    webhook_url = "https://telegrambot-production-0f8c.up.railway.app/webhook"  # Replace with your Railway URL
     await application.bot.set_webhook(url=webhook_url)
     print(f"Webhook set to {webhook_url}")
 
@@ -168,4 +168,4 @@ async def main():
 if __name__ == "__main__":
     import uvicorn
     asyncio.run(main())  # Set webhook before starting server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
