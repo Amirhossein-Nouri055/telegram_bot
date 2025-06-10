@@ -42,6 +42,10 @@ def get_gold_price():
     except requests.exceptions.RequestException as e:
         return None, f"خطا در دریافت قیمت: {e}"
 
+# Function to convert soot to gram
+def soot_to_gram(soot):
+    return soot * 0.1875  # 1 soot = 0.1875 gram
+
 # Function to extract product info from post caption
 def extract_product_info(caption):
     print(f"Extracting info from caption: {caption}")
@@ -53,28 +57,44 @@ def extract_product_info(caption):
     name = lines[0].strip() if lines else "محصول ناشناخته"
     print(f"Product name: {name}")
     
-    weight = re.search(r'وزن:\s*([\d.]+)\s*گرم', caption)
-    ajrat = re.search(r'اجرت:\s*([\d.]+)%', caption)
-    profit = re.search(r'سود:\s*([\d.]+)%', caption)
+    # Check for weight in different units
+    weight_gram = re.search(r'وزن:\s*([\d.]+)\s*گرم', caption)
+    weight_soot = re.search(r'وزن:\s*([\d.]+)\s*سوت', caption)
     
-    weight = float(weight.group(1)) if weight else 0
-    ajrat = float(ajrat.group(1)) if ajrat else 0
-    profit = float(profit.group(1)) if profit else 0
+    # Convert weight to gram if needed
+    if weight_gram:
+        weight = float(weight_gram.group(1))
+    elif weight_soot:
+        weight = soot_to_gram(float(weight_soot.group(1)))
+    else:
+        weight = 0
     
-    print(f"Extracted - Weight: {weight}, Ajrat: {ajrat}, Profit: {profit}")
+    ajrat_percent = re.search(r'اجرت:\s*([\d.]+)%', caption)
+    ajrat_toman = re.search(r'اجرت:\s*([\d,]+)\s*تومان', caption)
+    profit_percent = re.search(r'سود:\s*([\d.]+)%', caption)
+    profit_toman = re.search(r'سود:\s*([\d,]+)\s*تومان', caption)
+    
+    ajrat = float(ajrat_percent.group(1)) if ajrat_percent else 0
+    ajrat_toman_value = int(ajrat_toman.group(1).replace(',', '')) if ajrat_toman else 0
+    profit = float(profit_percent.group(1)) if profit_percent else 0
+    profit_toman_value = int(profit_toman.group(1).replace(',', '')) if profit_toman else 0
+    
+    print(f"Extracted - Weight: {weight}g, Ajrat: {ajrat}% or {ajrat_toman_value} toman, Profit: {profit}% or {profit_toman_value} toman")
     
     return {
         "name": name,
         "weight": weight,
         "ajrat": ajrat,
-        "profit": profit
+        "ajrat_toman": ajrat_toman_value,
+        "profit": profit,
+        "profit_toman": profit_toman_value
     }
 
 # Function to calculate final price
-def calculate_price(weight, ajrat, profit, price_per_gram):
+def calculate_price(weight, ajrat, ajrat_toman, profit, profit_toman, price_per_gram):
     base_price = weight * price_per_gram
-    ajrat_amount = base_price * (ajrat / 100)
-    profit_amount = base_price * (profit / 100)
+    ajrat_amount = base_price * (ajrat / 100) if ajrat > 0 else ajrat_toman
+    profit_amount = base_price * (profit / 100) if profit > 0 else profit_toman
     total_price = base_price + ajrat_amount + profit_amount
     return int(total_price)
 
@@ -98,7 +118,9 @@ async def handle_new_post(update: telegram.Update, context: telegram.ext.Context
             await context.bot.send_message(
                 chat_id=ADMIN_CHAT_ID,
                 text="لطفاً اطلاعات محصول رو به این شکل وارد کنید:\n"
-                     "نام محصول\nوزن: (عدد و برای ممیز نقطه) گرم\nاجرت: (عدد)%\nسود: (عدد)%"
+                     "نام محصول\nوزن: (عدد) گرم یا (عدد) سوت\n"
+                     "اجرت: (عدد)% یا (عدد) تومان\n"
+                     "سود: (عدد)% یا (عدد) تومان"
             )
         except Exception as e:
             print(f"Error sending message to admin: {e}")
@@ -107,7 +129,9 @@ async def handle_new_post(update: telegram.Update, context: telegram.ext.Context
     product_data = {
         "weight": product_info["weight"],
         "ajrat": product_info["ajrat"],
-        "profit": product_info["profit"]
+        "ajrat_toman": product_info["ajrat_toman"],
+        "profit": product_info["profit"],
+        "profit_toman": product_info["profit_toman"]
     }
     product_data_json = json.dumps(product_data)
     
@@ -151,7 +175,9 @@ async def button_callback(update: telegram.Update, context: telegram.ext.Context
     total_price = calculate_price(
         product_data['weight'],
         product_data['ajrat'],
+        product_data['ajrat_toman'],
         product_data['profit'],
+        product_data['profit_toman'],
         price_per_gram
     )
     
